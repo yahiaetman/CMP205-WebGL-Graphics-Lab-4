@@ -25,7 +25,7 @@ export default class PointLightScene extends Scene {
     light = {
         diffuse: vec3.fromValues(1,1,1),
         specular: vec3.fromValues(1,1,1),
-        ambient: vec3.fromValues(1,1,1),
+        ambient: vec3.fromValues(0.1,0.1,0.1),
         position: vec3.fromValues(0,3,0),
         attenuation_quadratic: 1,
         attenuation_linear: 0,

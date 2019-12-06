@@ -25,7 +25,7 @@ export default class DirectionalLightScene extends Scene {
     light = {
         diffuse: vec3.fromValues(1,1,1),
         specular: vec3.fromValues(1,1,1),
-        ambient: vec3.fromValues(1,1,1),
+        ambient: vec3.fromValues(0.1,0.1,0.1),
         direction: vec3.fromValues(-1,-1,-1)
     };
 
