@@ -1,6 +1,6 @@
 #version 300 es
 precision highp float;
-precision highp sampler2DShadow;
+precision highp sampler2DShadow; // The precision of the shadow map sampler
 
 in vec2 v_texcoord;
 in vec3 v_world;
@@ -22,13 +22,17 @@ struct Material {
 };
 uniform Material material;
 
+// We will only support up to 4 cascades
+#define MAX_CASCADES 4
+
 struct DirectionalLight {
     vec3 color;
     vec3 direction;
     bool hasShadow;
-    sampler2DShadow shadowMaps[2];
-    mat4 shadowVPs[2];
-    float cascades[2];
+    sampler2DShadow shadowMaps[MAX_CASCADES];
+    mat4 shadowVPs[MAX_CASCADES];
+    float cascades[MAX_CASCADES];
+    int active_cascades; // The number of active cascades
 };
 uniform DirectionalLight light;
 
@@ -70,22 +74,23 @@ void main(){
     vec3 n = normalize(v_normal);
     vec3 v = normalize(v_view);
 
-    float shadow = 1.0f;
-    if(light.hasShadow){
-        for(int i = 0; i < 2; i++){
-            if(distance(cam_position, v_world) <= light.cascades[i]){
-                vec4 shadowCoord = light.shadowVPs[i] * vec4(v_world, 1.0f);
-                shadowCoord /= shadowCoord.w;
-                shadowCoord = 0.5f * shadowCoord + 0.5f;
-                shadow = texture(light.shadowMaps[i], shadowCoord.xyz);
-                break;
+    float shadow = 1.0f; // If shadow is 1, we are in the light, otherwise, we are in the shadow (I didn't choose the name wisely but I am lazy to change it)
+    if(light.hasShadow){ // If this light casts shadows
+        int cascade_count = min(light.active_cascades, MAX_CASCADES); // Make sure we don't loop beyond the array size even if the input is incorrect
+        for(int i = 0; i < cascade_count; i++){ // for each cascade
+            if(distance(cam_position, v_world) <= light.cascades[i]){ // if we are within the cascade range
+                vec4 shadowCoord = light.shadowVPs[i] * vec4(v_world, 1.0f); // We calculate the shadow coordinates
+                shadowCoord /= shadowCoord.w; // Go from Homogenous clip space to Normalized device coordinates
+                shadowCoord = 0.5f * shadowCoord + 0.5f; // change range from [-1, 1] to [0, 1]
+                shadow = texture(light.shadowMaps[i], shadowCoord.xyz); // Sample the shadow map (the shadow sampler uses the z of the texture coordinate for depth comparison)
+                break; // If we found the cascade then we are done here
             }
         }
     }
 
     color = vec4(
         (sampled.albedo*diffuse(n, -light.direction) + 
-        sampled.specular*specular(n, -light.direction, v, sampled.shininess)) * shadow * light.color,
+        sampled.specular*specular(n, -light.direction, v, sampled.shininess)) * shadow * light.color, // multiply shadow factor with light
         1.0f
     );
 }

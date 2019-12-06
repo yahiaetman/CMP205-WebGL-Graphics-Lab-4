@@ -2,6 +2,8 @@
 layout(location=0) in vec3 position;
 layout(location=3) in vec3 normal;
 
+// This shader is exactly the same as the spot and point light vertex shader
+
 out vec3 v_world;
 out vec3 v_normal;
 out vec3 v_view;

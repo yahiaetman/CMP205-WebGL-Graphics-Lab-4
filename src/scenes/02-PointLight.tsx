@@ -15,6 +15,7 @@ export default class PointLightScene extends Scene {
     controller: FlyCameraController;
     meshes: {[name: string]: Mesh} = {};
 
+    // This will store our material properties
     material = {
         diffuse: vec3.fromValues(0.5,0.3,0.1),
         specular: vec3.fromValues(1,1,1),
@@ -22,6 +23,7 @@ export default class PointLightScene extends Scene {
         shininess: 20
     };
 
+    // And this will store our directional light properties
     light = {
         diffuse: vec3.fromValues(1,1,1),
         specular: vec3.fromValues(1,1,1),
@@ -33,6 +35,7 @@ export default class PointLightScene extends Scene {
     };
 
     public load(): void {
+        // We need shader specifically designed to do point lighting
         this.game.loader.load({
             ["vert"]:{url:'shaders/phong/single-light/point.vert', type:'text'},
             ["frag"]:{url:'shaders/phong/single-light/point.frag', type:'text'},
@@ -41,14 +44,17 @@ export default class PointLightScene extends Scene {
     } 
     
     public start(): void {
+        // Compile and Link the shader
         this.program = new ShaderProgram(this.gl);
         this.program.attach(this.game.loader.resources["vert"], this.gl.VERTEX_SHADER);
         this.program.attach(this.game.loader.resources["frag"], this.gl.FRAGMENT_SHADER);
         this.program.link();
 
+        // Load the models
         this.meshes['ground'] = MeshUtils.Plane(this.gl, {min:[0,0], max:[100,100]});
         this.meshes['suzanne'] = MeshUtils.LoadOBJMesh(this.gl, this.game.loader.resources["suzanne"]);
 
+        // Create a camera and a controller
         this.camera = new Camera();
         this.camera.type = 'perspective';
         this.camera.position = vec3.fromValues(5,5,5);
@@ -58,6 +64,7 @@ export default class PointLightScene extends Scene {
         this.controller = new FlyCameraController(this.camera, this.game.input);
         this.controller.movementSensitivity = 0.01;
 
+        // As usual, we enable face culling and depth testing
         this.gl.enable(this.gl.CULL_FACE);
         this.gl.cullFace(this.gl.BACK);
         this.gl.frontFace(this.gl.CCW);
@@ -65,23 +72,27 @@ export default class PointLightScene extends Scene {
         this.gl.enable(this.gl.DEPTH_TEST);
         this.gl.depthFunc(this.gl.LEQUAL);
 
+        // We don't need blending
         this.gl.disable(this.gl.BLEND);
 
+        // Use a dark grey clear color
         this.gl.clearColor(0.1,0.1,0.1,1);
 
         this.setupControls();
     }
     
     public draw(deltaTime: number): void {
-        this.controller.update(deltaTime);
+        this.controller.update(deltaTime); // Update camera
 
-        this.gl.clear(this.gl.COLOR_BUFFER_BIT | this.gl.DEPTH_BUFFER_BIT);
+        this.gl.clear(this.gl.COLOR_BUFFER_BIT | this.gl.DEPTH_BUFFER_BIT); // Clear color and depth
         
-        this.program.use();
+        this.program.use(); // Start using the shader for point light
 
+        // Send the VP and camera position
         this.program.setUniformMatrix4fv("VP", false, this.camera.ViewProjectionMatrix);
         this.program.setUniform3f("cam_position", this.camera.position);
         
+        // Send light properties
         this.program.setUniform3f("light.diffuse", this.light.diffuse);
         this.program.setUniform3f("light.specular", this.light.specular);
         this.program.setUniform3f("light.ambient", this.light.ambient);
@@ -90,18 +101,23 @@ export default class PointLightScene extends Scene {
         this.program.setUniform1f("light.attenuation_linear", this.light.attenuation_linear);
         this.program.setUniform1f("light.attenuation_constant", this.light.attenuation_constant);
 
+        // Create model matrix for the ground
         let groundM = mat4.create();
         mat4.scale(groundM, groundM, [100, 1, 100]);
 
+        // Send M for position and M inverse transpose for normals
         this.program.setUniformMatrix4fv("M", false, groundM);
         this.program.setUniformMatrix4fv("M_it", true, mat4.invert(mat4.create(), groundM));
+        // Send material properties
         this.program.setUniform3f("material.diffuse", [0.5,0.5,0.5]);
         this.program.setUniform3f("material.specular", [0.2,0.2,0.2]);
         this.program.setUniform3f("material.ambient", [0.1,0.1,0.1]);
         this.program.setUniform1f("material.shininess", 2);
 
+        // Draw the ground
         this.meshes['ground'].draw(this.gl.TRIANGLES);
 
+        // Do the same for all the monkeys
         for(let i = -1; i <= 1; i++){
             for(let j = -1; j <= 1; j++){
                 let M = mat4.create();

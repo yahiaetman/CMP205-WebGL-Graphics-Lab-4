@@ -9,22 +9,24 @@ in vec3 v_view;
 out vec4 color;
 
 struct Material {
-    sampler2D albedo;
-    vec3 albedo_tint;
+    sampler2D albedo; // Albedo will be used for diffuse and ambient
+    vec3 albedo_tint; // This tint will be multiplied by the the albedo to control its color
     sampler2D specular;
     vec3 specular_tint;
-    sampler2D roughness;
-    float roughness_scale;
-    sampler2D ambient_occlusion;
-    sampler2D emissive;
+    sampler2D roughness; // Roughness will be used for the specular
+    float roughness_scale; // This will be used to scale the roughness (Note: it should be less than 1)
+    sampler2D ambient_occlusion; // This will be used to occlude the ambient light
+    sampler2D emissive; // This will be used for emissive materials
     vec3 emissive_tint;
 };
 uniform Material material;
 
+// For ambient lighting, we will use Hemisphere light since it is slightly more realistic than plain ambient light
+// In Hemisphere light, the ambient lighting will depend on the pixel normal
 struct HemisphereLight {
-    vec3 skyColor;
-    vec3 groundColor;
-    vec3 skyDirection;
+    vec3 skyColor; // What color is the sky bounce light
+    vec3 groundColor; // What color is the ground bounce light
+    vec3 skyDirection; // Which direction points toward the sky
 };
 uniform HemisphereLight light;
 
@@ -46,7 +48,7 @@ struct SampledMaterial {
     float shininess;
     float ambient_occlusion;
 };
-
+// This will sample the material textures and return the sampling results
 SampledMaterial sampleMaterial(Material material, vec2 texcoord){
     SampledMaterial mat;
     mat.albedo = material.albedo_tint * texture(material.albedo, texcoord).rgb;
@@ -63,9 +65,10 @@ void main(){
 
     vec3 n = normalize(v_normal);
     vec3 v = normalize(v_view);
+    vec3 ambient = mix(light.groundColor, light.skyColor , 0.5f * dot(n, light.skyDirection) + 0.5f); // Mix the sky and ground color based on the normal direction
     color = vec4(
-        sampled.emissive +
-        sampled.albedo * sampled.ambient_occlusion * mix(light.groundColor, light.skyColor , 0.5f * dot(n, light.skyDirection) + 0.5f),
+        sampled.emissive + // Ideally, we should separate emissive light but this mean that we will have to add one more pass... no thanks
+        sampled.albedo * sampled.ambient_occlusion * ambient, // Note that, we multiply the ambient occlusion with the albedo to get the material ambient color
         1.0f
     );
 }

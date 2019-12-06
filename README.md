@@ -1,7 +1,5 @@
 # WebGL Lab 4
 
-# Lab Under Construction
-
 You can try the lab [here](https://yahiaetman.github.io/CMP205-WebGL-Graphics-Lab-4/)
 
 ## Steps to run
@@ -46,3 +44,4 @@ You can try the lab [here](https://yahiaetman.github.io/CMP205-WebGL-Graphics-La
 * [Mouse Picking with Ray Casting](http://antongerdelan.net/opengl/raycasting.html) by Anton Gerdelan.
 * [WebGL2 Samples](https://github.com/WebGLSamples/WebGL2Samples)
 * [GLSL Reference](https://www.khronos.org/opengles/sdk/docs/manglsl/docbook4/)
+* [Marmoset Guide for Metalness to Specular Conversion](https://marmoset.co/posts/pbr-texture-conversion/#metaltospec)

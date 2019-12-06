@@ -13,6 +13,8 @@ struct Material {
 };
 uniform Material material;
 
+// Here we receive all the lights at once
+// We use the "enabled" variable to know whether a light is on or off
 struct DirectionalLight {
     bool enabled;
     vec3 diffuse;
@@ -20,6 +22,7 @@ struct DirectionalLight {
     vec3 ambient;
     vec3 direction;
 };
+// We allow for only 1 directional light (we could support more but with more cost)
 #define NUM_DIRECTIONAL_LIGHTS 1
 uniform DirectionalLight directional_lights[NUM_DIRECTIONAL_LIGHTS];
 
@@ -33,6 +36,7 @@ struct PointLight {
     float attenuation_linear;
     float attenuation_constant;
 };
+// We allow for only 4 point lights (we could support also less or more)
 #define NUM_POINT_LIGHTS 4
 uniform PointLight point_lights[NUM_POINT_LIGHTS];
 
@@ -49,11 +53,13 @@ struct SpotLight {
     float inner_cone;
     float outer_cone;
 };
+// We allow for only 4 spot lights (we could support also less or more)
 #define NUM_SPOT_LIGHTS 4
 uniform SpotLight spot_lights[NUM_SPOT_LIGHTS];
 
 out vec4 color;
 
+// Just the regular lambert diffuse and phong specular
 float diffuse(vec3 n, vec3 l){
     return max(0.0f, dot(n,l));
 }
@@ -62,6 +68,7 @@ float specular(vec3 n, vec3 l, vec3 v, float shininess){
     return pow(max(0.0f, dot(v,reflect(-l, n))), shininess);
 }
 
+// This will loop over all directional lights and calculate the total directional illuminuation
 vec3 calculate_directional_lights(vec3 n, vec3 v){
     vec3 color = vec3(0,0,0);
     for(int i = 0; i < NUM_DIRECTIONAL_LIGHTS; i++){
@@ -76,6 +83,7 @@ vec3 calculate_directional_lights(vec3 n, vec3 v){
     return color;
 }
 
+// This will loop over all point lights and calculate the total point illuminuation
 vec3 calculate_point_lights(vec3 n, vec3 v){
     vec3 color = vec3(0,0,0);
     for(int i = 0; i < NUM_POINT_LIGHTS; i++){
@@ -97,6 +105,7 @@ vec3 calculate_point_lights(vec3 n, vec3 v){
     return color;
 }
 
+// This will loop over all spot lights and calculate the total spot illuminuation
 vec3 calculate_spot_lights(vec3 n, vec3 v){
     vec3 color = vec3(0,0,0);
     for(int i = 0; i < NUM_SPOT_LIGHTS; i++){
@@ -123,6 +132,7 @@ void main()
 {
     vec3 n = normalize(v_normal);
     vec3 v = normalize(v_view);
+    // Get the sum of all lights here
     color = vec4(
         calculate_directional_lights(n, v) +
         calculate_point_lights(n, v) +

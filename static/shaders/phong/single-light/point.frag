@@ -40,9 +40,11 @@ float specular(vec3 n, vec3 l, vec3 v, float shininess){
 void main(){
     vec3 n = normalize(v_normal);
     vec3 v = normalize(v_view);
-    vec3 l = light.position - v_world;
-    float d = length(l);
-    l /= d;
+    vec3 l = light.position - v_world; // Here we need to calculate the light vector
+    float d = length(l); // Get the distance between the light and the pixel
+    l /= d; // Normalize the light vector
+    // The attenuation is how much we dim the light as it gets farther
+    // Naturally, it should be d^2 but we allow for more artistic control
     float attenuation = light.attenuation_constant +
                         light.attenuation_linear * d +
                         light.attenuation_quadratic * d * d;

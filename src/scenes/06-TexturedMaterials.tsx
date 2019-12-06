@@ -7,8 +7,11 @@ import Camera from '../common/camera';
 import FlyCameraController from '../common/camera-controllers/fly-camera-controller';
 import { vec3, mat4, quat } from 'gl-matrix';
 import { Vector, Selector, Color, NumberInput, CheckBox } from '../common/dom-utils';
-import { createElement, StatelessProps, StatelessComponent } from 'tsx-create-element';
+import { createElement } from 'tsx-create-element';
 
+// It is better to create interfaces for each type of light for organization (think of them as structs)
+// We simplify things here and consider the light to have only one color
+// Also we separate the ambient light into its own light and make it a hemispherical light (the ambient differs according to the direction)
 interface AmbientLight {
     type: 'ambient',
     enabled: boolean,
@@ -47,8 +50,15 @@ interface SpotLight {
     outer_cone: number
 };
 
+// This union type: it can be any of the specified types
 type Light = AmbientLight | DirectionalLight | PointLight | SpotLight;
 
+// This will store the material properties
+// To be more consistent with modern workflows, we use what is called albedo to define the diffuse and ambient
+// And since specular power (shininess) is in the range 0 to infinity and the more popular roughness paramater is in the range 0 to 1, we read the roughness from the image and convert it to shininess (specular power)
+// We also add an emissive properties in case the object itself emits light
+// Finally, while the ambient is naturally the same a the diffuse, some areas recieve less ambient than other (e.g. folds), so we use the ambient occlusion texture to darken the ambient in these areas
+// We also add tints and scales to control the properties without using multiple textures
 interface Material {
     albedo: WebGLTexture,
     albedo_tint: vec3,
@@ -61,13 +71,14 @@ interface Material {
     emissive_tint: vec3
 };
 
+// This will represent an object in 3D space
 interface Object3D {
     mesh: Mesh,
     material: Material,
     modelMatrix: mat4
 };
 
-// In this scene we will draw some monkeys with multiple lights using blending and multiple shaders
+// In this scene we will draw some textured monkeys with multiple lights using blending and multiple shaders
 export default class TexturedMaterialsScene extends Scene {
     programs: {[name: string]: ShaderProgram} = {};
     camera: Camera;
@@ -76,6 +87,7 @@ export default class TexturedMaterialsScene extends Scene {
     textures: {[name: string]: WebGLTexture} = {};
     samplers: {[name: string]: WebGLSampler} = {};
 
+    // We will store the lights here
     lights: Light[] = [
         { type: "ambient", enabled: true, skyColor: vec3.fromValues(0.2, 0.3, 0.4), groundColor: vec3.fromValues(0.1, 0.1, 0.1), skyDirection: vec3.fromValues(0,1,0)},
         { type: 'directional', enabled: true, color: vec3.fromValues(0.5,0.5,0.5), direction:vec3.fromValues(-1,-1,-1) },
@@ -89,9 +101,11 @@ export default class TexturedMaterialsScene extends Scene {
         { type: 'spot', enabled: true, color: vec3.fromValues(5,5,0), position:vec3.fromValues(-3,+1,-3), direction:vec3.fromValues(+1,0,+1), attenuation_quadratic:1, attenuation_linear:0, attenuation_constant:0, inner_cone: 0.25*Math.PI, outer_cone: 0.3*Math.PI  },
     ];
 
+    // And we will store the objects here
     objects: {[name: string]: Object3D} = {};
 
     public load(): void {
+        // All the lights will use the same vertex shader combined with different fragment shaders
         this.game.loader.load({
             ["light.vert"]:{url:'shaders/phong/textured-materials/light.vert', type:'text'},
             ["ambient.frag"]:{url:'shaders/phong/textured-materials/ambient.frag', type:'text'},
@@ -114,6 +128,7 @@ export default class TexturedMaterialsScene extends Scene {
     } 
     
     public start(): void {
+        // For each light type, compile and link a shader
         for(let type of ['ambient', 'directional', 'point', 'spot']){
             this.programs[type] = new ShaderProgram(this.gl);
             this.programs[type].attach(this.game.loader.resources['light.vert'], this.gl.VERTEX_SHADER);
@@ -121,9 +136,11 @@ export default class TexturedMaterialsScene extends Scene {
             this.programs[type].link();
         }
 
-        this.meshes['ground'] = MeshUtils.Plane(this.gl, {min:[0,0], max:[100,100]});
+        // Load the models
+        this.meshes['ground'] = MeshUtils.Plane(this.gl, {min:[0,0], max:[50,50]});
         this.meshes['suzanne'] = MeshUtils.LoadOBJMesh(this.gl, this.game.loader.resources["suzanne"]);
 
+        // Load the textures
         this.textures['asphalt.albedo'] = TextureUtils.LoadImage(this.gl, this.game.loader.resources['asphalt.albedo']);
         this.textures['asphalt.emissive'] = TextureUtils.LoadImage(this.gl, this.game.loader.resources['asphalt.emissive']);
         this.textures['asphalt.roughness'] = TextureUtils.LoadImage(this.gl, this.game.loader.resources['asphalt.roughness']);
@@ -141,6 +158,7 @@ export default class TexturedMaterialsScene extends Scene {
         this.textures['white'] = TextureUtils.SingleColor(this.gl, [255, 255, 255, 255]);
         this.textures['black'] = TextureUtils.SingleColor(this.gl, [0, 0, 0, 255]);
 
+        // Create the 3D ojbects
         this.objects['ground'] = {
             mesh: this.meshes['ground'],
             material: {
@@ -213,6 +231,7 @@ export default class TexturedMaterialsScene extends Scene {
         this.gl.samplerParameteri(this.samplers['regular'], this.gl.TEXTURE_MAG_FILTER, this.gl.LINEAR);
         this.gl.samplerParameteri(this.samplers['regular'], this.gl.TEXTURE_MIN_FILTER, this.gl.LINEAR_MIPMAP_LINEAR);
 
+        // Create a camera and a controller
         this.camera = new Camera();
         this.camera.type = 'perspective';
         this.camera.position = vec3.fromValues(5,5,5);
@@ -222,6 +241,7 @@ export default class TexturedMaterialsScene extends Scene {
         this.controller = new FlyCameraController(this.camera, this.game.input);
         this.controller.movementSensitivity = 0.01;
 
+        // As usual, we enable face culling and depth testing
         this.gl.enable(this.gl.CULL_FACE);
         this.gl.cullFace(this.gl.BACK);
         this.gl.frontFace(this.gl.CCW);
@@ -229,36 +249,39 @@ export default class TexturedMaterialsScene extends Scene {
         this.gl.enable(this.gl.DEPTH_TEST);
         this.gl.depthFunc(this.gl.LEQUAL);
 
+        // Use a dark grey clear color
         this.gl.clearColor(0.1,0.1,0.1,1);
 
         this.setupControls();
     }
     
     public draw(deltaTime: number): void {
-        this.controller.update(deltaTime);
+        this.controller.update(deltaTime); // Update camera
 
-        this.gl.clear(this.gl.COLOR_BUFFER_BIT | this.gl.DEPTH_BUFFER_BIT);
+        this.gl.clear(this.gl.COLOR_BUFFER_BIT | this.gl.DEPTH_BUFFER_BIT); // Clear color and depth
 
         let first_light = true;
-        
+        // for each light, draw the whole scene
         for(const light of this.lights){
-            if(!light.enabled) continue;
+            if(!light.enabled) continue; // If the light is not enabled, continue
 
-            if(first_light){
+            if(first_light){ // If tihs is the first light, there is no need for blending
                 this.gl.disable(this.gl.BLEND);
                 first_light = false;
-            }else{
+            }else{ // If this in not the first light, we need to blend it additively with all the lights drawn before
                 this.gl.enable(this.gl.BLEND);
                 this.gl.blendEquation(this.gl.FUNC_ADD);
-                this.gl.blendFunc(this.gl.ONE, this.gl.ONE);
+                this.gl.blendFunc(this.gl.ONE, this.gl.ONE); // This config will make the output = src_color + dest_color
             }
 
-            let program = this.programs[light.type];
-            program.use();
+            let program = this.programs[light.type]; // Get the shader to use with this light type
+            program.use(); // Use it
 
+            // Send the VP and camera position
             program.setUniformMatrix4fv("VP", false, this.camera.ViewProjectionMatrix);
             program.setUniform3f("cam_position", this.camera.position);
 
+            // Send the light properties depending on its type (remember to normalize the light direction)
             if(light.type == 'ambient'){
                 program.setUniform3f(`light.skyColor`, light.skyColor);
                 program.setUniform3f(`light.groundColor`, light.groundColor);
@@ -281,12 +304,15 @@ export default class TexturedMaterialsScene extends Scene {
                 }
             }
 
+            // Loop over objects and draw them
             for(let name in this.objects){
                 let obj = this.objects[name];
 
+                // Create model matrix for the object
                 program.setUniformMatrix4fv("M", false, obj.modelMatrix);
                 program.setUniformMatrix4fv("M_it", true, mat4.invert(mat4.create(), obj.modelMatrix));
                 
+                // Send material properties and bind the textures
                 program.setUniform3f("material.albedo_tint", obj.material.albedo_tint);
                 program.setUniform3f("material.specular_tint", obj.material.specular_tint);
                 program.setUniform3f("material.emissive_tint", obj.material.emissive_tint);
@@ -316,7 +342,8 @@ export default class TexturedMaterialsScene extends Scene {
                 this.gl.bindTexture(this.gl.TEXTURE_2D, obj.material.ambient_occlusion);
                 this.gl.bindSampler(4, this.samplers['regular']);
                 program.setUniform1i("material.ambient_occlusion", 4);
-
+                
+                // Draw the object
                 obj.mesh.draw(this.gl.TRIANGLES);
             }   
         }

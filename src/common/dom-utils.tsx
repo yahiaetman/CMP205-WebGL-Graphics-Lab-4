@@ -3,20 +3,22 @@ import { StatelessComponent, StatelessProps, createElement } from 'tsx-create-el
 interface VectorProps {
     vector: Float32Array
     start?: number,
-    length?: number
+    length?: number,
+    [name: string]: any
 }
 
 const coordinates = ['x', 'y', 'z', 'w'];
 
 export const Vector: StatelessComponent<VectorProps> = (props: StatelessProps<VectorProps>) => {
-    const start: number = props.start ?? 0;
-    const length: number = Math.min(4, props.length ?? 4);
-    const end: number = Math.min(start + length, props.vector.length);
+    let {vector, start, length, children, ...rest} = props;
+    start = start ?? 0;
+    length = Math.min(4, length ?? 4);
+    const end: number = Math.min(start + length, vector.length);
     let components = []
     for(let i = start; i < end; i++){
         components.push(
             <label className="control-label">{coordinates[i-start]}</label>,
-            <input type="number" step="0.05" value={props.vector[i]} onchange={(ev: InputEvent)=>{props.vector[i]=Number.parseFloat((ev.target as HTMLInputElement).value)}}/>
+            <input type="number" value={vector[i]} onchange={(ev: InputEvent)=>{vector[i]=Number.parseFloat((ev.target as HTMLInputElement).value)}} {...rest}/>
         )
     }
     return <span>
@@ -27,20 +29,22 @@ export const Vector: StatelessComponent<VectorProps> = (props: StatelessProps<Ve
 interface ColorProps {
     color: Float32Array
     start?: number,
-    length?: number
+    length?: number,
+    [name: string]: any
 }
 
 const color_coordinates = ['r', 'g', 'b', 'a'];
 
 export const Color: StatelessComponent<ColorProps> = (props: StatelessProps<ColorProps>) => {
-    const start: number = props.start ?? 0;
-    const length: number = Math.min(4, props.length ?? 4);
-    const end: number = Math.min(start + length, props.color.length);
+    let {color, start, length, children, ...rest} = props;
+    start = start ?? 0;
+    length = Math.min(4, length ?? 4);
+    const end: number = Math.min(start + length, color.length);
     let components = []
     for(let i = start; i < end; i++){
         components.push(
             <label className="control-label">{color_coordinates[i-start]}</label>,
-            <input type="number" step="0.05" value={props.color[i]} onchange={(ev: InputEvent)=>{props.color[i]=Number.parseFloat((ev.target as HTMLInputElement).value)}}/>
+            <input type="number" value={color[i]} onchange={(ev: InputEvent)=>{color[i]=Number.parseFloat((ev.target as HTMLInputElement).value)}} {...rest}/>
         )
     }
     return <span>

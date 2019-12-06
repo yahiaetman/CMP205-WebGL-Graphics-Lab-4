@@ -1,6 +1,8 @@
 #version 300 es
 precision highp float;
 
+// This file is exactly the same as the one in texture-materials since we don't support ambient light shadowing
+
 in vec2 v_texcoord;
 in vec3 v_world;
 in vec3 v_normal;

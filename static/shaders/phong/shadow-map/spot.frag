@@ -1,6 +1,6 @@
 #version 300 es
 precision highp float;
-precision highp sampler2DShadow;
+precision highp sampler2DShadow; // The precision of the shadow map sampler
 
 in vec2 v_texcoord;
 in vec3 v_world;
@@ -80,19 +80,19 @@ void main(){
                         light.attenuation_linear * d +
                         light.attenuation_quadratic * d * d;
 
-    float shadow = 1.0f;
-    if(light.hasShadow){
-            vec4 shadowCoord = light.shadowVPs[0] * vec4(v_world, 1.0f);
-            shadowCoord /= shadowCoord.w;
-            shadowCoord = 0.5f * shadowCoord + 0.5f;
-            shadow = texture(light.shadowMaps[0], shadowCoord.xyz);
+    float shadow = 1.0f; // If shadow is 1, we are in the light, otherwise, we are in the shadow (I didn't choose the name wisely but I am lazy to change it)
+    if(light.hasShadow){ // If this light casts shadows
+            vec4 shadowCoord = light.shadowVPs[0] * vec4(v_world, 1.0f); // We calculate the shadow coordinates
+            shadowCoord /= shadowCoord.w; // Go from Homogenous clip space to Normalized device coordinates
+            shadowCoord = 0.5f * shadowCoord + 0.5f;; // change range from [-1, 1] to [0, 1]
+            shadow = texture(light.shadowMaps[0], shadowCoord.xyz); // Sample the shadow map (the shadow sampler uses the z of the texture coordinate for depth comparison)
     }
     
     color = vec4(
         (
             sampled.albedo*diffuse(n, l) + 
             sampled.specular*specular(n, l, v, sampled.shininess)
-        )*shadow*light.color/attenuation*smoothstep(light.outer_cone, light.inner_cone, angle),
+        ) * shadow * light.color/attenuation * smoothstep(light.outer_cone, light.inner_cone, angle),  // multiply shadow factor with light
         1.0f
     );
     //Notice that Attenuation only affects diffuse and specular term

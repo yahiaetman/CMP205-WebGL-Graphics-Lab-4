@@ -3,6 +3,8 @@ layout(location=0) in vec3 position;
 layout(location=2) in vec2 texcoord;
 layout(location=3) in vec3 normal;
 
+// This is exactly the same as the one in textured-materials
+
 out vec2 v_texcoord;
 out vec3 v_world;
 out vec3 v_normal;

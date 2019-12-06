@@ -1,6 +1,8 @@
 #version 300 es
 precision highp float;
 
+// Most of the documentation in ambient.frag applies here
+
 in vec2 v_texcoord;
 in vec3 v_world;
 in vec3 v_normal;
@@ -71,6 +73,8 @@ void main(){
     float attenuation = light.attenuation_constant +
                         light.attenuation_linear * d +
                         light.attenuation_quadratic * d * d;
+    // No more ambient here, it is moved to ambient.frag
+    // Also, the light color is no longer seperated by diffuse and specular
     color = vec4(
         (
             sampled.albedo*diffuse(n, l) + 

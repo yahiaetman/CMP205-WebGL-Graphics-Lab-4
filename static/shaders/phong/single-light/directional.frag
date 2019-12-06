@@ -36,10 +36,11 @@ float specular(vec3 n, vec3 l, vec3 v, float shininess){
 void main(){
     vec3 n = normalize(v_normal);
     vec3 v = normalize(v_view);
+    vec3 l = -light.direction; // For directional lights, the light vector is the inverse of the light direction
     color = vec4(
         material.ambient*light.ambient + 
-        material.diffuse*light.diffuse*diffuse(n, -light.direction) + 
-        material.specular*light.specular*specular(n, -light.direction, v, material.shininess),
+        material.diffuse*light.diffuse*diffuse(n, l) + 
+        material.specular*light.specular*specular(n, l, v, material.shininess),
         1.0f
     );
 }

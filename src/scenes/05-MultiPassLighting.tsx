@@ -6,8 +6,9 @@ import Camera from '../common/camera';
 import FlyCameraController from '../common/camera-controllers/fly-camera-controller';
 import { vec3, mat4 } from 'gl-matrix';
 import { Vector, Selector, Color, NumberInput, CheckBox } from '../common/dom-utils';
-import { createElement, StatelessProps, StatelessComponent } from 'tsx-create-element';
+import { createElement } from 'tsx-create-element';
 
+// It is better to create interfaces for each type of light for organization (think of them as structs)
 interface DirectionalLight {
     type: 'directional',
     enabled: boolean,
@@ -44,6 +45,7 @@ interface SpotLight {
     outer_cone: number
 };
 
+// This union type: it can be any of the specified types
 type Light = DirectionalLight | PointLight | SpotLight;
 
 // In this scene we will draw some monkeys with multiple lights using blending and multiple shaders
@@ -53,6 +55,7 @@ export default class MultiPassLightingsScene extends Scene {
     controller: FlyCameraController;
     meshes: {[name: string]: Mesh} = {};
 
+    // This will store our material properties
     material = {
         diffuse: vec3.fromValues(0.5,0.3,0.1),
         specular: vec3.fromValues(1,1,1),
@@ -60,6 +63,7 @@ export default class MultiPassLightingsScene extends Scene {
         shininess: 20
     };
 
+    // And these will store our light properties together in list
     lights: Light[] = [
         { type: 'directional', enabled: true, diffuse: vec3.fromValues(0.5,0.5,0.5), specular:vec3.fromValues(0.5,0.5,0.5), ambient:vec3.fromValues(0.1,0.1,0.1), direction:vec3.fromValues(-1,-1,-1) },
         { type: 'point', enabled: true, diffuse: vec3.fromValues(1,0,0), specular:vec3.fromValues(1,0,0), ambient:vec3.fromValues(0.1,0.0,0.0), position:vec3.fromValues(+6,+1,+0), attenuation_quadratic:1, attenuation_linear:0, attenuation_constant:0 },
@@ -73,6 +77,7 @@ export default class MultiPassLightingsScene extends Scene {
     ];
 
     public load(): void {
+        // We need multiple shaders; one for each light type. Luckily, they are the same as the ones we used in each single light scene
         this.game.loader.load({
             ["directional.vert"]:{url:'shaders/phong/single-light/directional.vert', type:'text'},
             ["directional.frag"]:{url:'shaders/phong/single-light/directional.frag', type:'text'},
@@ -85,6 +90,7 @@ export default class MultiPassLightingsScene extends Scene {
     } 
     
     public start(): void {
+        // Compile and Link a shader for each light type
         for(let type of ['directional', 'point', 'spot']){
             this.programs[type] = new ShaderProgram(this.gl);
             this.programs[type].attach(this.game.loader.resources[`${type}.vert`], this.gl.VERTEX_SHADER);
@@ -92,15 +98,18 @@ export default class MultiPassLightingsScene extends Scene {
             this.programs[type].link();
         }
 
+        // Load the models
         this.meshes['ground'] = MeshUtils.Plane(this.gl, {min:[0,0], max:[100,100]});
         this.meshes['suzanne'] = MeshUtils.LoadOBJMesh(this.gl, this.game.loader.resources["suzanne"]);
 
+        // Create a camera and a controller
         this.camera = new Camera();
         this.camera.type = 'perspective';
         this.camera.position = vec3.fromValues(5,5,5);
         this.camera.direction = vec3.fromValues(-1,-1,-1);
         this.camera.aspectRatio = this.gl.drawingBufferWidth/this.gl.drawingBufferHeight;
         
+        // As usual, we enable face culling and depth testing
         this.controller = new FlyCameraController(this.camera, this.game.input);
         this.controller.movementSensitivity = 0.01;
 
@@ -111,36 +120,39 @@ export default class MultiPassLightingsScene extends Scene {
         this.gl.enable(this.gl.DEPTH_TEST);
         this.gl.depthFunc(this.gl.LEQUAL);
 
+        // Use a dark grey clear color
         this.gl.clearColor(0.1,0.1,0.1,1);
 
         this.setupControls();
     }
     
     public draw(deltaTime: number): void {
-        this.controller.update(deltaTime);
+        this.controller.update(deltaTime); // Update camera
 
-        this.gl.clear(this.gl.COLOR_BUFFER_BIT | this.gl.DEPTH_BUFFER_BIT);
+        this.gl.clear(this.gl.COLOR_BUFFER_BIT | this.gl.DEPTH_BUFFER_BIT); // Clear color and depth
 
         let first_light = true;
-        
+        // for each light, draw the whole scene
         for(const light of this.lights){
-            if(!light.enabled) continue;
+            if(!light.enabled) continue; // If the light is not enabled, continue
 
-            if(first_light){
+            if(first_light){ // If tihs is the first light, there is no need for blending
                 this.gl.disable(this.gl.BLEND);
                 first_light = false;
-            }else{
+            }else{ // If this in not the first light, we need to blend it additively with all the lights drawn before
                 this.gl.enable(this.gl.BLEND);
                 this.gl.blendEquation(this.gl.FUNC_ADD);
-                this.gl.blendFunc(this.gl.ONE, this.gl.ONE);
+                this.gl.blendFunc(this.gl.ONE, this.gl.ONE); // This config will make the output = src_color + dest_color
             }
 
-            let program = this.programs[light.type];
-            program.use();
+            let program = this.programs[light.type]; // Get the shader to use with this light type
+            program.use(); // Use it
 
+            // Send the VP and camera position
             program.setUniformMatrix4fv("VP", false, this.camera.ViewProjectionMatrix);
             program.setUniform3f("cam_position", this.camera.position);
 
+            // Send the light properties depending on its type (remember to normalize the light direction)
             program.setUniform3f(`light.diffuse`, light.diffuse);
             program.setUniform3f(`light.specular`, light.specular);
             program.setUniform3f(`light.ambient`, light.ambient);
@@ -159,18 +171,23 @@ export default class MultiPassLightingsScene extends Scene {
                 program.setUniform1f(`light.outer_cone`, light.outer_cone);
             }
 
+            // Create model matrix for the ground
             let groundM = mat4.create();
             mat4.scale(groundM, groundM, [100, 1, 100]);
 
+            // Send M for position and M inverse transpose for normals
             program.setUniformMatrix4fv("M", false, groundM);
             program.setUniformMatrix4fv("M_it", true, mat4.invert(mat4.create(), groundM));
+            // Send material properties
             program.setUniform3f("material.diffuse", [0.5,0.5,0.5]);
             program.setUniform3f("material.specular", [0.2,0.2,0.2]);
             program.setUniform3f("material.ambient", [0.1,0.1,0.1]);
             program.setUniform1f("material.shininess", 2);
 
+            // Draw the ground
             this.meshes['ground'].draw(this.gl.TRIANGLES);
 
+            // Do the same for all the monkeys
             for(let i = -1; i <= 1; i++){
                 for(let j = -1; j <= 1; j++){
                     let M = mat4.create();
@@ -186,7 +203,7 @@ export default class MultiPassLightingsScene extends Scene {
                     this.meshes['suzanne'].draw(this.gl.TRIANGLES);
                 }
             }
-            }
+        }
     }
     
     public end(): void {

@@ -1,6 +1,8 @@
 #version 300 es
 precision highp float;
 
+// Most of the documentation in ambient.frag applies here
+
 in vec2 v_texcoord;
 in vec3 v_world;
 in vec3 v_normal;
@@ -62,6 +64,8 @@ void main(){
 
     vec3 n = normalize(v_normal);
     vec3 v = normalize(v_view);
+    // No more ambient here, it is moved to ambient.frag
+    // Also, the light color is no longer seperated by diffuse and specular
     color = vec4(
         (sampled.albedo*diffuse(n, -light.direction) + 
         sampled.specular*specular(n, -light.direction, v, sampled.shininess)) * light.color,

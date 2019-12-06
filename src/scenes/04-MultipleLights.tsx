@@ -6,8 +6,9 @@ import Camera from '../common/camera';
 import FlyCameraController from '../common/camera-controllers/fly-camera-controller';
 import { vec3, mat4 } from 'gl-matrix';
 import { Vector, Selector, Color, NumberInput, CheckBox } from '../common/dom-utils';
-import { createElement, StatelessProps, StatelessComponent } from 'tsx-create-element';
+import { createElement } from 'tsx-create-element';
 
+// It is better to create interfaces for each type of light for organization (think of them as structs)
 interface DirectionalLight {
     enabled: boolean,
     diffuse: vec3,
@@ -48,6 +49,7 @@ export default class MultipleLightsScene extends Scene {
     controller: FlyCameraController;
     meshes: {[name: string]: Mesh} = {};
 
+    // This will store our material properties
     material = {
         diffuse: vec3.fromValues(0.5,0.3,0.1),
         specular: vec3.fromValues(1,1,1),
@@ -55,6 +57,7 @@ export default class MultipleLightsScene extends Scene {
         shininess: 20
     };
 
+    // And these will store our light properties separated by type
     directional_lights: DirectionalLight[] = [
         { enabled: true, diffuse: vec3.fromValues(0.5,0.5,0.5), specular:vec3.fromValues(0.5,0.5,0.5), ambient:vec3.fromValues(0.1,0.1,0.1), direction:vec3.fromValues(-1,-1,-1) }
     ];
@@ -74,6 +77,7 @@ export default class MultipleLightsScene extends Scene {
     ];
 
     public load(): void {
+        // We need one big shader specifically designed to do all the lighting
         this.game.loader.load({
             ["vert"]:{url:'shaders/phong/multiple-lights/lights.vert', type:'text'},
             ["frag"]:{url:'shaders/phong/multiple-lights/lights.frag', type:'text'},
@@ -82,14 +86,17 @@ export default class MultipleLightsScene extends Scene {
     } 
     
     public start(): void {
+        // Compile and Link the shader
         this.program = new ShaderProgram(this.gl);
         this.program.attach(this.game.loader.resources["vert"], this.gl.VERTEX_SHADER);
         this.program.attach(this.game.loader.resources["frag"], this.gl.FRAGMENT_SHADER);
         this.program.link();
 
+        // Load the models
         this.meshes['ground'] = MeshUtils.Plane(this.gl, {min:[0,0], max:[100,100]});
         this.meshes['suzanne'] = MeshUtils.LoadOBJMesh(this.gl, this.game.loader.resources["suzanne"]);
 
+        // Create a camera and a controller
         this.camera = new Camera();
         this.camera.type = 'perspective';
         this.camera.position = vec3.fromValues(5,5,5);
@@ -99,6 +106,7 @@ export default class MultipleLightsScene extends Scene {
         this.controller = new FlyCameraController(this.camera, this.game.input);
         this.controller.movementSensitivity = 0.01;
 
+        // As usual, we enable face culling and depth testing
         this.gl.enable(this.gl.CULL_FACE);
         this.gl.cullFace(this.gl.BACK);
         this.gl.frontFace(this.gl.CCW);
@@ -106,23 +114,27 @@ export default class MultipleLightsScene extends Scene {
         this.gl.enable(this.gl.DEPTH_TEST);
         this.gl.depthFunc(this.gl.LEQUAL);
 
+        // We don't need blending
         this.gl.disable(this.gl.BLEND);
 
+        // Use a dark grey clear color
         this.gl.clearColor(0.1,0.1,0.1,1);
 
         this.setupControls();
     }
     
     public draw(deltaTime: number): void {
-        this.controller.update(deltaTime);
+        this.controller.update(deltaTime); // Update camera
 
-        this.gl.clear(this.gl.COLOR_BUFFER_BIT | this.gl.DEPTH_BUFFER_BIT);
+        this.gl.clear(this.gl.COLOR_BUFFER_BIT | this.gl.DEPTH_BUFFER_BIT); // Clear color and depth
         
-        this.program.use();
+        this.program.use(); // Start using the shader for lights
 
+        // Send the VP and camera position
         this.program.setUniformMatrix4fv("VP", false, this.camera.ViewProjectionMatrix);
         this.program.setUniform3f("cam_position", this.camera.position);
         
+        // For each light type, send their properties (remember to normalize the light direction)
         this.directional_lights.forEach((light, i)=>{
             this.program.setUniform1f(`directional_lights[${i}].enabled`, light.enabled?1:0);
             this.program.setUniform3f(`directional_lights[${i}].diffuse`, light.diffuse);
@@ -154,18 +166,23 @@ export default class MultipleLightsScene extends Scene {
             this.program.setUniform1f(`spot_lights[${i}].outer_cone`, light.outer_cone);
         });
 
+        // Create model matrix for the ground
         let groundM = mat4.create();
         mat4.scale(groundM, groundM, [100, 1, 100]);
 
+        // Send M for position and M inverse transpose for normals
         this.program.setUniformMatrix4fv("M", false, groundM);
         this.program.setUniformMatrix4fv("M_it", true, mat4.invert(mat4.create(), groundM));
+        // Send material properties
         this.program.setUniform3f("material.diffuse", [0.5,0.5,0.5]);
         this.program.setUniform3f("material.specular", [0.2,0.2,0.2]);
         this.program.setUniform3f("material.ambient", [0.1,0.1,0.1]);
         this.program.setUniform1f("material.shininess", 2);
 
+        // Draw the ground
         this.meshes['ground'].draw(this.gl.TRIANGLES);
 
+        // Do the same for all the monkeys
         for(let i = -1; i <= 1; i++){
             for(let j = -1; j <= 1; j++){
                 let M = mat4.create();

@@ -1,6 +1,6 @@
 #version 300 es
 precision highp float;
-precision highp sampler2DShadow;
+precision highp sampler2DShadow; // The precision of the shadow map sampler
 
 in vec2 v_texcoord;
 in vec3 v_world;
@@ -76,14 +76,19 @@ void main(){
                         light.attenuation_linear * d +
                         light.attenuation_quadratic * d * d;
 
-    float shadow = 1.0f;
-    if(light.hasShadow){
-            for(int i = 0; i < 6; i++){
-                vec4 shadowCoord = light.shadowVPs[i] * vec4(v_world, 1.0f);
-                shadowCoord /= shadowCoord.w;
-                shadowCoord = 0.5f * shadowCoord + 0.5f;
+    float shadow = 1.0f; // If shadow is 1, we are in the light, otherwise, we are in the shadow (I didn't choose the name wisely but I am lazy to change it)
+    if(light.hasShadow){ // If this light casts shadows
+            for(int i = 0; i < 6; i++){ // loop over the 6 diections
+                vec4 shadowCoord = light.shadowVPs[i] * vec4(v_world, 1.0f); // We calculate the shadow coordinates
+                shadowCoord /= shadowCoord.w; // Go from Homogenous clip space to Normalized device coordinates
+                shadowCoord = 0.5f * shadowCoord + 0.5f; // change range from [-1, 1] to [0, 1]
                 bool inRange = shadowCoord.x >= 0.0f && shadowCoord.y >= 0.0f && shadowCoord.z >= 0.0f && shadowCoord.x <= 1.0f && shadowCoord.y <= 1.0f && shadowCoord.z <= 1.0f;
-                if(inRange) shadow = texture(light.shadowMaps[i], shadowCoord.xyz);
+                // check if we are in the range of the Normalized device coordinates [-1, 1]
+                if(inRange) {
+                    // If yes, then we found the direction so we get the sample the shadow map and break
+                    shadow = texture(light.shadowMaps[i], shadowCoord.xyz); // (the shadow sampler uses the z of the texture coordinate for depth comparison)
+                    break;
+                }
             }
     }
 
@@ -91,7 +96,7 @@ void main(){
         (
             sampled.albedo*diffuse(n, l) + 
             sampled.specular*specular(n, l, v, sampled.shininess)
-        )*shadow*light.color/attenuation,
+        ) * shadow * light.color/attenuation, // multiply shadow factor with light
         1.0f
     );
     //Notice that Attenuation only affects diffuse and specular term
